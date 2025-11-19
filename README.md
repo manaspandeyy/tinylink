@@ -2,10 +2,7 @@
 
 A robust, minimal URL shortener API and Dashboard built with Node.js, Express, and PostgreSQL.
 
-[View Live Demo]([INSERT YOUR RENDER URL HERE])
-
-> **Note to Reviewers:** Because this application is a URL shortener hosted on a new, free "onrender.com" subdomain, Google Chrome might flag it as a "Deceptive Site" (False Positive). This is standard behavior for new redirect services on shared domains. Please click **Details -> Proceed** to view the application.
-
+[View Live Demo] (https://tinylink-er0n.onrender.com/) 
 ---
 
 ## Project Overview
@@ -43,3 +40,4 @@ Follow these steps to run the project on your machine.
 ```bash
 git clone [https://github.com/](https://github.com/)[YOUR_USERNAME]/tinylink.git
 cd tinylink
+
