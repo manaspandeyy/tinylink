@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>TinyLink</title>
+  <style>
+   
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;max-width:900px;margin:32px auto;color:#1f2937;padding:0 16px;}
+    header{margin-bottom:24px;border-bottom:1px solid #e5e7eb;padding-bottom:16px;}
+    h1{font-size:24px;margin:0;font-weight:700;color:#111827;}
+    
+    
+    form{display:grid;grid-template-columns:1fr 180px 100px;gap:12px;margin-bottom:24px;}
+    input,button{padding:10px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;}
+    button{cursor:pointer;background:#2563eb;color:white;border:none;font-weight:500;}
+    button:hover{background:#1d4ed8;}
+    button:disabled{background:#9ca3af;cursor:not-allowed;}
+    
+    
+    table{width:100%;border-collapse:collapse;margin-top:16px;font-size:14px;}
+    th{text-align:left;background:#f9fafb;padding:12px;border-bottom:1px solid #e5e7eb;color:#4b5563;}
+    td{padding:12px;border-bottom:1px solid #e5e7eb;}
+    .url-col{max-width:250px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;} /* Truncate URL */
+    
+    
+    .actions button{padding:6px 10px;font-size:12px;margin-right:4px;}
+    .btn-del{background:#ef4444;}
+    .btn-del:hover{background:#dc2626;}
+    .btn-sec{background:#4b5563;}
+    
+   
+    .notice{padding:12px;border-radius:6px;margin-bottom:16px;font-size:14px;display:none;}
+    .notice.error{background:#fee2e2;color:#991b1b;}
+    .notice.success{background:#dcfce7;color:#166534;}
+    
+    .view-section{display:none;}
+    .active{display:block;}
+    
+    @media(max-width:640px){ form{grid-template-columns:1fr;} .actions{display:flex;gap:4px;flex-wrap:wrap;} }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>TinyLink</h1>
+    <nav style="margin-top:8px;">
+        <a href="/" style="color:#2563eb;text-decoration:none;margin-right:12px;">&larr; Dashboard</a>
+    </nav>
+  </header>
+
+  <div id="notice" class="notice"></div>
+
+  <div id="view-dashboard" class="view-section">
+    <form id="createForm">
+      <input id="target" type="url" placeholder="https://example.com/long/url" required />
+      <input id="code" type="text" placeholder="Custom code (opt)" maxlength="8" pattern="[A-Za-z0-9]{6,8}" />
+      <button id="createBtn" type="submit">Shorten</button>
+    </form>
+
+    <div id="loading" style="display:none;color:#6b7280;">Loading links...</div>
+    
+    <table id="linksTable">
+      <thead>
+        <tr>
+          <th>Short</th>
+          <th>Target URL</th>
+          <th>Clicks</th>
+          <th>Last Clicked</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+
+  <div id="view-stats" class="view-section">
+     <h2 id="stats-title">Stats for /...</h2>
+     <div style="background:#f9fafb;padding:20px;border-radius:8px;border:1px solid #e5e7eb;">
+        <p><strong>Target URL:</strong> <a id="stat-target" href="#" target="_blank">...</a></p>
+        <p><strong>Total Clicks:</strong> <span id="stat-clicks" style="font-size:24px;font-weight:bold;">0</span></p>
+        <p><strong>Last Clicked:</strong> <span id="stat-last">Never</span></p>
+     </div>
+  </div>
+
+<script>
+const BASE = location.origin; 
+const $notice = document.getElementById('notice');
+const $viewDash = document.getElementById('view-dashboard');
+const $viewStats = document.getElementById('view-stats');
+
+
+function handleRoute() {
+  const path = window.location.pathname;
+  if (path.startsWith('/code/')) {
+    const code = path.split('/')[2];
+    showStats(code);
+  } else {
+    showDashboard();
+  }
+}
+
+function showNotice(text, type='success') {
+  $notice.textContent = text;
+  $notice.className = 'notice ' + type;
+  $notice.style.display = text ? 'block' : 'none';
+  if(type==='success') setTimeout(() => $notice.style.display='none', 3000);
+}
+
+
+async function showDashboard() {
+  $viewDash.classList.add('active');
+  $viewStats.classList.remove('active');
+  
+  try {
+    const res = await fetch('/api/links');
+    if(!res.ok) throw new Error();
+    const links = await res.json();
+    renderLinks(links);
+  } catch { showNotice('Failed to load links', 'error'); }
+}
+
+function renderLinks(links) {
+  const tbody = document.getElementById('tbody');
+  tbody.innerHTML = '';
+  links.forEach(l => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><a href="/${l.code}" target="_blank" style="font-weight:bold;color:#2563eb;">${l.code}</a></td>
+      <td><a href="${l.target_url}" target="_blank" class="url-col">${l.target_url}</a></td>
+      <td>${l.clicks}</td>
+      <td>${l.last_clicked ? new Date(l.last_clicked).toLocaleString() : '-'}</td>
+      <td class="actions">
+        <button onclick="copyLink('${l.code}')" class="btn-sec">Copy</button>
+        <button onclick="viewStatsLink('${l.code}')" class="btn-sec">Stats</button>
+        <button onclick="deleteLink('${l.code}')" class="btn-del">Delete</button>
+      </td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+async function showStats(code) {
+  $viewDash.classList.remove('active');
+  $viewStats.classList.add('active');
+  document.getElementById('stats-title').textContent = `Stats for /${code}`;
+  
+  try {
+    const res = await fetch(`/api/links/${code}`);
+    if(!res.ok) throw new Error('Link not found');
+    const data = await res.json();
+    
+    document.getElementById('stat-target').href = data.target_url;
+    document.getElementById('stat-target').textContent = data.target_url;
+    document.getElementById('stat-clicks').textContent = data.clicks;
+    document.getElementById('stat-last').textContent = data.last_clicked ? new Date(data.last_clicked).toLocaleString() : 'Never';
+  } catch(e) {
+    showNotice(e.message, 'error');
+  }
+}
+
+
+window.viewStatsLink = (code) => {
+  history.pushState(null, '', `/code/${code}`);
+  handleRoute();
+};
+
+window.deleteLink = async (code) => {
+  if(!confirm('Delete this link?')) return;
+  try {
+    const res = await fetch(`/api/links/${code}`, {method:'DELETE'});
+    if(res.ok) { showDashboard(); showNotice('Deleted'); }
+  } catch { showNotice('Delete failed', 'error'); }
+};
+
+window.copyLink = (code) => {
+  navigator.clipboard.writeText(`${BASE}/${code}`);
+  showNotice('Copied to clipboard');
+};
+
+document.getElementById('createForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const target = document.getElementById('target').value;
+  const code = document.getElementById('code').value;
+  const btn = document.getElementById('createBtn');
+  
+  btn.disabled = true;
+  try {
+    const body = { target_url: target };
+    if(code) body.code = code;
+    
+    const res = await fetch('/api/links', {
+      method:'POST',
+      headers:{'content-type':'application/json'},
+      body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    if(!res.ok) throw new Error(data.error || 'Error');
+    
+    document.getElementById('target').value = '';
+    document.getElementById('code').value = '';
+    showNotice(`Created: ${data.short_url}`);
+    showDashboard();
+  } catch(err) {
+    showNotice(err.message, 'error');
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+
+window.addEventListener('popstate', handleRoute);
+handleRoute();
+</script>
+</body>
+</html>
